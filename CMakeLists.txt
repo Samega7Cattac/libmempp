@@ -1,69 +1,62 @@
 cmake_minimum_required(VERSION 3.20)
 
-set(CMAKE_CXX_STANDARD 20
-    CACHE STRING "Cpp standard.")
+# Define variables for build type
+option(LIBMEMPP_BUILD_STATIC "Build libmempp static" OFF)
+option(LIBMEMPP_BUILD_SHARED "Build libmempp shared" ON)
 
-project(mempp)
+# CMakeScripts includes
+include(cmake/cpp_flags.cmake)
 
-set(LIBRARY_TARGET_NAME "mempp"
-    CACHE STRING "Library target name.")
-
-set(STATIC_LIBRARY OFF
-    CACHE BOOL "Build static library.")
+# Set the minimum standard
+set(CMAKE_CXX_STANDARD 20)
 
 # Set to "ON" to debug makefile commands
 set(CMAKE_VERBOSE_MAKEFILE ON
-     CACHE BOOL "Show makefiles commands on build.")
+        CACHE BOOL "Show makefiles commands on build.")
 
-if(STATIC_LIBRARY EQUAL ON)
-    message(STATUS "Build: Static")
+set(LIBRARY_TARGET_NAME "mempp"
+        CACHE STRING "Library target name")
+
+project(mempp)
+
+if (LIBMEMPP_BUILD_STATIC AND NOT LIBMEMPP_BUILD_SHARED)
     add_library(${LIBRARY_TARGET_NAME} STATIC)
-else()
-    message(STATUS "Build: Shared")
+elseif (LIBMEMPP_BUILD_SHARED AND NOT LIBMEMPP_BUILD_STATIC)
     add_library(${LIBRARY_TARGET_NAME} SHARED)
     target_compile_options(${LIBRARY_TARGET_NAME}
         PRIVATE
-            -fPIC)
-endif()
+            -fPIC
+    )
+else ()
+    message(FATAL_ERROR "Libmempp build type not set or invalid!\nEither LIBMEMPP_BUILD_STATIC OR LIBMEMPP_BUILD_SHARED to ON!")
+endif ()
 
-# Add extra flags to the compiler
-add_compile_options(-Werror -Wall -Wextra)
+SetMyDefaultFlags(${LIBRARY_TARGET_NAME})
 
-# In case of building in debug it spreds that definition to all targets
-if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-     add_compile_definitions("DEBUG")
-endif()
+# Custom flags
+target_compile_options(${LIBRARY_TARGET_NAME}
+    PRIVATE
+        -Wno-format # Complains about converting hex string to long unsigned int into a long int
+    INTERFACE
+        -fpermissive # Needed for some casts that may lose precision (requires close attention for now)
+)
+
+add_subdirectory(libmempp)
+
+add_subdirectory(tests)
+
+include(GNUInstallDirs)
 
 install(TARGETS ${LIBRARY_TARGET_NAME}
-    EXPORT "${LIBRARY_TARGET_NAME}Config"
-    DESTINATION lib
-    INCLUDES DESTINATION ${CMAKE_INSTALL_PREFIX}/include)
+        EXPORT "${LIBRARY_TARGET_NAME}Config"
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        FILE_SET HEADERS DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
 
 install(EXPORT "${LIBRARY_TARGET_NAME}Config"
-    FILE "${LIBRARY_TARGET_NAME}Config.cmake"
-    NAMESPACE mempp::
-    DESTINATION cmake)
-
-install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/src/"
-    DESTINATION include/mempp
-    FILES_MATCHING
-    PATTERN "*.hpp")
-
-# uninstall target
-if(NOT TARGET uninstall)
-  configure_file(
-    "${CMAKE_CURRENT_SOURCE_DIR}/cmake_uninstall.cmake.in"
-    "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake"
-    IMMEDIATE @ONLY)
-
-  add_custom_target(uninstall
-    COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake)
-endif()
-
-add_executable(test_mempp main.cpp)
-
-add_executable(target target.cpp)
-
-add_subdirectory(src)
-
-target_link_libraries(test_mempp ${CMAKE_CURRENT_SOURCE_DIR}/cmake-build-debug/libmempp.so)
+        FILE "${LIBRARY_TARGET_NAME}Config.cmake"
+        NAMESPACE ${PROJECT_NAME}::
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/cmake
+)

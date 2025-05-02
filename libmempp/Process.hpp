@@ -1,8 +1,8 @@
 #ifndef LIBMEMPP_PROCESS_HPP
 #define LIBMEMPP_PROCESS_HPP
 
-#ifdef __WIN32
-#include "windows/"
+#ifdef _WIN32
+#include "windows/Process.hpp"
 #elif __unix__
 #include "unix/Process.hpp"
 #endif
